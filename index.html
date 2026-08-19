@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapbox — 3D Live Navigation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  /*
+    Font note: the Figma file specifies "Cera PRO" (Bold/Medium/Regular) throughout.
+    Cera PRO is a commercial font not available via free CDN, so this build substitutes
+    Manrope (closest freely-licensed geometric sans match). Swap the font-family below
+    for 'Cera PRO' once the licensed font files are available in the project.
+  */
+  :root{
+    --font: 'Cera PRO', 'Trebuchet MS', 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+
+    --hero-bg: #000008;
+    --header-strip: #010207;
+    --bg-app: #0e1012;
+    --bg-elevated: #15171b;
+    --bg-card-border: #1c1f24;
+    --bg-placeholder: #25282b;
+    --border-subtle: #23262d;
+    --border-control: #333943;
+
+    --text-primary: #ffffff;
+    --text-secondary: #bbc2ce;
+    --text-muted: #a0aaba;
+    --text-faint: #8b96aa;
+
+    --accent: #007afc;
+    --accent-badge: #0062ca;
+    --outline-strong: #566171;
+    --outline-soft: rgba(255,255,255,0.4);
+
+    /* gutter == exactly 288px at 1920w design width (1920-1344)/2, floors at 32px on narrow viewports */
+    --gutter: max(32px, calc((100vw - 1344px) / 2));
+    /* nav bar per Figma is 1280px wide, centered at 320px margins at 1920w */
+    --nav-gutter: max(16px, calc((100vw - 1280px) / 2));
+  }
+
+  *{ box-sizing: border-box; }
+  html{ scroll-behavior: smooth; }
+  body{
+    margin:0;
+    background: var(--bg-app);
+    color: var(--text-primary);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  img{ max-width:100%; display:block; }
+  a{ color:inherit; text-decoration:none; }
+  .wrap{ padding: 0 var(--gutter); }
+
+  /* ---------- buttons (exact: 51.59px tall, 100px radius, 18px medium text) ---------- */
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    height: 51.59px; padding: 0 22px;
+    border-radius: 100px;
+    font-size: 18px; font-weight:500;
+    border: 1px solid transparent;
+    cursor:pointer;
+    transition: background .18s ease, border-color .18s ease, transform .12s ease;
+    white-space: nowrap;
+  }
+  .btn:active{ transform: scale(0.97); }
+  .btn-primary{ background: var(--accent); border-color: var(--accent); color:#fff; }
+  .btn-primary:hover{ background: #0668d1; }
+  .btn-ghost-hero{ background: transparent; color:var(--text-primary); border-color: var(--outline-soft); }
+  .btn-ghost-hero:hover{ background: rgba(255,255,255,0.08); }
+  .btn-ghost-dark{ background: transparent; color:var(--text-primary); border-color: var(--outline-strong); }
+  .btn-ghost-dark:hover{ background: rgba(255,255,255,0.06); }
+  /* header Sign up button: exact size pulled from live mapbox.com/3d-lanes (Figma's 12px/20px was wrong) */
+  .btn-header{ height:auto; padding: 8px 16px; font-size:15px; letter-spacing:normal; }
+  .btn{ cursor: default; }
+  .btn:active{ transform:none; }
+
+  /* ---------- header : 72px, nav bar 1280 centered (Figma spec). Solid bg + bottom border only
+     kick in once the hero scroll-sequence is fully scrolled past (not on the first pixel of scroll,
+     unlike live mapbox.com — our hero is a 420vh scroll-scrub and should stay transparent through it).
+     The bg/border pairing itself (flat color + 1px border, both fading in over .4s, no blur/shadow)
+     matches live mapbox.com/3d-lanes header. ---------- */
+  .site-header{
+    position: fixed; top:0; left:0; right:0; z-index: 100;
+    height: 72px;
+    display:flex; align-items:center;
+    background: transparent;
+    border-bottom: 1px solid transparent;
+    transition: background .4s ease, border-color .4s ease;
+  }
+  .site-header.solid{ background: var(--bg-app); border-bottom-color: var(--bg-card-border); }
+  .nav-inner{
+    width:100%;
+    padding: 0 var(--nav-gutter);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .brand{ display:flex; align-items:center; height:28px; }
+  .brand svg{ width:125.76px; height:28px; display:block; }
+  .nav-links{ display:flex; align-items:center; gap:40px; }
+  .nav-links a{ display:flex; align-items:center; gap:6px; font-size:16px; font-weight:500; letter-spacing:-0.16px; color:#fff; }
+  /* dropdown caret: shape/size/color copied from live mapbox.com/automotive (rounded chevron, muted gray, not full white) */
+  .nav-links .caret{ width:7px; height:5px; color: var(--outline-strong); display:block; }
+  .nav-right{ display:flex; align-items:center; gap:20px; }
+  .nav-right .link{ font-size:15px; font-weight:500; letter-spacing:normal; }
+  @media (max-width: 980px){ .nav-links{ display:none; } }
+
+  /* ---------- hero : bg #000008, video full-bleed starting 189px from hero top ---------- */
+  .hero{
+    position: relative;
+    background: var(--hero-bg);
+  }
+  .hero-sticky{
+    position: sticky; top:0; height:100vh; width:100%;
+    overflow: hidden;
+  }
+  .hero-copy{
+    position: absolute;
+    top: 0; left:0; right:0;
+    z-index: 5;
+    text-align:center;
+    padding-top: 120px; /* title starts 120px from viewport top (48px below 72px header) */
+    pointer-events: none;
+  }
+  .hero-scrim{
+    position:absolute; top:0; left:0; right:0; z-index:4;
+    height: 78%;
+    background: linear-gradient(180deg,
+      rgba(0,0,0,0.85) 0%,
+      rgba(0,0,0,0.75) 25%,
+      rgba(0,0,0,0.55) 50%,
+      rgba(0,0,0,0.25) 75%,
+      rgba(0,0,0,0) 100%);
+    pointer-events:none;
+  }
+  .hero-copy .inner{ pointer-events:auto; max-width: 900px; margin:0 auto; padding:0 24px; }
+  .hero-copy h1{
+    margin:0 0 40px;
+    font-size: 76px; line-height: 91.2px; font-weight:800; letter-spacing:-0.76px;
+  }
+  .hero-copy h1 .line1{ display:block; color:#fff; }
+  .hero-copy h1 .line2{ display:block; color:#fff; }
+  .hero-copy p{
+    max-width: 751px; margin: 0 auto 40px;
+    color: var(--text-secondary);
+    font-size: 20px; line-height:32px; font-weight:400;
+  }
+  .hero-cta{ display:flex; gap:27px; justify-content:center; }
+
+  /* hero copy fade-in on page load */
+  .hero-copy .inner > *{ opacity:0; transform: translateY(24px); }
+  .hero-copy.loaded .inner > *{
+    opacity:1; transform: translateY(0);
+    transition: opacity .9s cubic-bezier(.16,.84,.44,1), transform .9s cubic-bezier(.16,.84,.44,1);
+  }
+  .hero-copy.loaded .inner > *:nth-child(1){ transition-delay:.05s; }
+  .hero-copy.loaded .inner > *:nth-child(2){ transition-delay:.2s; }
+  .hero-copy.loaded .inner > *:nth-child(3){ transition-delay:.35s; }
+
+  /* generic scroll-reveal for page sections (fade + rise as block enters viewport) */
+  .reveal{
+    opacity:0; transform: translateY(40px);
+    transition: opacity .8s cubic-bezier(.16,.84,.44,1), transform .8s cubic-bezier(.16,.84,.44,1);
+  }
+  .reveal.in-view{ opacity:1; transform: translateY(0); }
+  .lane-card.reveal:nth-child(1){ transition-delay:0s; }
+  .lane-card.reveal:nth-child(2){ transition-delay:.1s; }
+  .lane-card.reveal:nth-child(3){ transition-delay:.2s; }
+  .lane-card.reveal:nth-child(4){ transition-delay:.3s; }
+  .feature-card.reveal:nth-child(1){ transition-delay:0s; }
+  .feature-card.reveal:nth-child(2){ transition-delay:.1s; }
+  .feature-card.reveal:nth-child(3){ transition-delay:.2s; }
+
+  .hero-video-wrap{
+    position: absolute; inset:0;
+    width: 100%; height:100%;
+    background:#000;
+  }
+  .hero-video-wrap canvas{ width:100%; height:100%; display:block; }
+
+  .scroll-hint{
+    position:absolute; bottom: 24px; left:50%; transform: translateX(-50%);
+    font-size:11px; color: var(--text-faint);
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    z-index: 6; transition: opacity .3s ease;
+  }
+  .scroll-hint .dash{ width:1px; height:22px; background: linear-gradient(var(--text-faint), transparent); animation: dashmove 1.6s ease-in-out infinite; }
+  @keyframes dashmove{ 0%{ opacity:.2; } 50%{ opacity:1; } 100%{ opacity:.2; } }
+
+  /* ---------- sticky section tabs : 56px, bg #15171b, border #23262d. Sticks to the bottom
+     of the fixed 72px header once scrolled up to it. ---------- */
+  .hero-tabs{
+    position: sticky; top: 72px; z-index: 40;
+    height:56px;
+    background: var(--bg-elevated);
+    border-top:1px solid var(--border-subtle);
+    border-bottom:1px solid var(--border-subtle);
+    display:flex; align-items:center; justify-content:center;
+    gap:40px;
+  }
+  .hero-tabs a{
+    font-size:16px; font-weight:500; color: var(--text-muted);
+    height:100%; display:flex; align-items:center;
+    border-bottom:2px solid transparent;
+    transition: color .2s ease, border-color .2s ease;
+  }
+  .hero-tabs a:hover, .hero-tabs a.active{ color:#fff; border-color: var(--accent); }
+
+  /* ---------- lane rows : titles + horizontal card carousels, user-driven only ---------- */
+  .lane-row{ padding: 120px 0; }
+  .lane-row-title{ margin: 0 0 40px; padding: 0 var(--gutter); }
+  .lane-row-title h2{ max-width: 822px; }
+  .lane-row-title p{ max-width: 822px; }
+  .lane-row-title h2{ font-size:56px; line-height:70px; font-weight:800; letter-spacing:-0.56px; margin:0 0 16px; }
+  .lane-row-title p{ font-size:20px; line-height:32px; color:var(--text-secondary); margin:0; font-weight:400; }
+  /* third row's paragraph is set larger in the Figma file itself (24/36 vs 20/32 on rows 1-2) */
+  .lane-row-title.size-lg p{ font-size:24px; line-height:36px; }
+
+  .lane-row-foot{
+    display:flex; justify-content:space-between; align-items:center;
+    margin: 40px 0 0; padding: 0 var(--gutter);
+  }
+  .dots{ display:flex; gap:11.6px; }
+  .dots i{ display:block; width:15.464px; height:16px; border:1px solid var(--border-control); border-radius:2px; }
+  .dots i.active{ width:30.929px; border-color:#bbc2ce; }
+  .row-arrows{ display:flex; gap:16px; }
+  .arrow-btn{
+    width:48px; height:48px; border-radius:4px;
+    border: 1px solid var(--border-control); background: transparent;
+    color: #fff;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition: background .15s ease, border-color .15s ease;
+  }
+  .arrow-btn:hover{ background: rgba(255,255,255,0.06); border-color:#566171; }
+  .arrow-btn svg{ width:14px; height:24px; }
+
+  .card-track{
+    display:flex; gap:40px; overflow:hidden; scroll-behavior:smooth;
+    padding: 0 var(--gutter); margin: 0; max-width: 100%;
+    cursor:grab;
+  }
+  .card-track.dragging{ cursor:grabbing; }
+  /* card width is 672px across all three rows per Figma; visual height varies slightly per row (417/426/421) */
+  .lane-card{ flex: 0 0 auto; width:672px; display:flex; flex-direction:column; gap:28px; user-select:none; }
+  .lane-card-visual{ width:100%; height:417px; background: var(--bg-placeholder); flex-shrink:0; border-radius:24px; overflow:hidden; }
+  .lane-card-visual img{ width:100%; height:100%; object-fit:cover; display:block; }
+  #row2 .lane-card-visual{ height:426px; }
+  #row3 .lane-card-visual{ height:421px; }
+  .lane-card-text{ display:flex; flex-direction:column; gap:8px; max-width:822px; }
+  .lane-card-text h3{ font-size:40px; line-height:52px; font-weight:800; letter-spacing:-0.44px; margin:0; }
+  .lane-card-text p{ font-size:20px; line-height:32px; color:var(--text-secondary); margin:0; font-weight:400; }
+
+  /* ---------- 3 callouts (Figma node 3968:60079 family): text+image row, alternating side ---------- */
+  .callouts-section{ padding: 120px 0; }
+  .callout-row{
+    display:flex; align-items:center; gap:93px;
+    padding: 0 var(--gutter);
+  }
+  .callout-row:not(:last-child){ margin-bottom: 120px; }
+  .callout-row-reverse{ flex-direction: row-reverse; }
+  .callout-text{ width:578px; flex-shrink:0; display:flex; flex-direction:column; gap:33px; }
+  .callout-text h3{
+    font-size:44px; line-height:1.3; font-weight:800; letter-spacing:-0.16px;
+    text-transform:capitalize; color:#fff; margin:0;
+  }
+  .callout-text p{ font-size:20px; line-height:1.6; color:#a0aaba; margin:0; font-weight:400; }
+  .callout-visual{
+    flex:1; height:460px; border-radius:16px; background:#37383a; overflow:hidden;
+  }
+  .callout-visual img{ width:100%; height:100%; object-fit:cover; display:block; }
+  @media (max-width: 1100px){
+    .callout-row, .callout-row-reverse{ flex-direction:column; }
+    .callout-text{ width:100%; }
+  }
+
+  /* ---------- BMW showcase: full-bleed media that shrinks to page-content width on scroll
+     (Apple studio-display-xdr "Image Quality" pattern) ---------- */
+  .bmw-scroll-wrap{ height: 250vh; position:relative; }
+  .bmw-sticky{
+    position:sticky; top:0; height:100vh;
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden; background:var(--bg-app);
+  }
+  .bmw-media{
+    position:relative; width:100%; height:100%; overflow:hidden;
+    will-change: transform, border-radius;
+  }
+  .bmw-media video{ width:100%; height:100%; object-fit:cover; display:block; }
+  .bmw-media::after{
+    content:""; position:absolute; inset:0; border-radius:inherit;
+    background: rgba(0,0,0,0.3);
+  }
+  /* text/button overlay: sibling of .bmw-media (not inside it), so it never inherits the scroll-driven scale */
+  .bmw-overlay{
+    position:absolute; inset:0; z-index:2;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:40px;
+    text-align:center; pointer-events:none;
+  }
+  .bmw-logo{ width:68px; height:68px; }
+  .bmw-logo img{ width:100%; height:100%; display:block; }
+  .bmw-overlay-text{ display:flex; flex-direction:column; align-items:center; gap:12px; }
+  .bmw-overlay h2{
+    font-size:56px; line-height:70px; font-weight:800; letter-spacing:-0.56px;
+    color:#fff; margin:0; max-width:716px;
+  }
+  .bmw-overlay .btn{ pointer-events:auto; padding:12px 20px; font-size:16px; letter-spacing:-0.16px; height:auto; }
+
+  /* ---------- customer testimonial slideshow : single 1344x448-ish slide, blurred bg photo ---------- */
+  /* no top padding: this section's title-bar sits flush against the bottom of More features'
+     bordered grid, per Figma full-composition node 4010:27915 (929px = 929px, zero gap) */
+  .customers-section{ padding: 0 0 60px; }
+  .customers-title{
+    font-size:56px; line-height:70px; font-weight:800; letter-spacing:-0.56px; text-align:center;
+    margin:0; padding:113px 0;
+    border-top:1px solid var(--bg-card-border); border-bottom:1px solid var(--bg-card-border);
+  }
+  .testimonial-viewport{
+    margin:0; padding: 0 var(--gutter);
+  }
+  .testimonial-frame{
+    position:relative; overflow:hidden; border-radius: 4px;
+    border: 1px solid var(--bg-card-border);
+    height: 450px;
+  }
+  .testimonial-slide{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column; justify-content:flex-end;
+    padding: 32px 40px;
+    opacity:0; transition: opacity .4s ease;
+    background: var(--bg-elevated);
+  }
+  .testimonial-slide.active{ opacity:1; z-index:2; }
+  /* blurred customer photo is the only visible background layer (overscanned via inset:-20px so
+     the blur radius never shows a sharp edge); dark gradient baked into the same layer keeps the
+     quote readable */
+  .testimonial-slide::before{
+    content:""; position:absolute; inset:-20px;
+    background-size:cover; background-position:center;
+    filter: blur(24px); z-index:0;
+  }
+  /* real customer photos, pulled from mapbox.com/automotive */
+  .testimonial-slide.t-bmw::before{ background-image: linear-gradient(90deg, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0.15) 100%), url('images/testimonial-bmw.webp'); }
+  .testimonial-slide.t-toyota::before{ background-image: linear-gradient(90deg, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0.15) 100%), url('images/testimonial-toyota.webp'); }
+  .testimonial-slide.t-hyundai::before{ background-image: linear-gradient(90deg, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0.15) 100%), url('images/testimonial-hyundai.png'); }
+  .testimonial-content{ position:relative; z-index:1; max-width:900px; }
+  .testimonial-logo{ font-size:20px; font-weight:800; margin-bottom:60px; }
+  .testimonial-company{ font-size:14px; font-weight:500; letter-spacing:1.4px; text-transform:uppercase; color:var(--text-secondary); margin-bottom:24px; }
+  .testimonial-quote{ font-size:44px; line-height:57.2px; font-weight:800; letter-spacing:-0.44px; margin:0; }
+  .testimonial-foot{
+    display:flex; justify-content:space-between; align-items:center;
+    margin: 20px 0 0; padding: 0 var(--gutter);
+  }
+
+  /* ---------- more features : 56px title, 3+2 card grid ---------- */
+  /* no bottom padding: grid sits flush against Customer stories' title-bar right after it,
+     per Figma full-composition node 4010:27915 (929px = 929px, zero gap) */
+  .features-section{ padding: 120px 0 0; }
+  /* title sits in its own full-bleed 1px-bordered bar, per Figma (node 4009:27842) */
+  .features-title{
+    font-size:56px; line-height:70px; font-weight:800; letter-spacing:-0.56px; text-align:center;
+    margin:-120px 0 0; padding:113px 0;
+    border-top:1px solid var(--bg-card-border); border-bottom:1px solid var(--bg-card-border);
+  }
+  /* grid of bordered cells (Figma node 4009:27846): top+left border on the grid itself, each
+     card contributes its own right+bottom border — collapses into single-pixel lines everywhere,
+     no doubling. Row 1 is 3 equal cards, row 2 is 2 equal (wider) cards. */
+  .features-grid{
+    margin:0 var(--gutter);
+    border-top:1px solid var(--bg-card-border); border-left:1px solid var(--bg-card-border);
+  }
+  .features-row{ display:grid; }
+  .features-row-3{ grid-template-columns: repeat(3, 1fr); }
+  .features-row-2{ grid-template-columns: repeat(2, 1fr); }
+  .feature-card{
+    display:flex; flex-direction:column; gap:24px;
+    padding: 56px 48px;
+    border-right:1px solid var(--bg-card-border); border-bottom:1px solid var(--bg-card-border);
+  }
+  .feature-icon{ width:48px; height:48px; }
+  .feature-icon img{ width:100%; height:100%; }
+  .feature-card h3{ font-size:28px; line-height: 1.35; font-weight:800; letter-spacing:-0.28px; margin:0; }
+  .feature-card p{ font-size:16px; line-height:1.6; color:var(--text-secondary); margin:0; font-weight:400; }
+  @media (max-width: 900px){ .features-row-3, .features-row-2{ grid-template-columns:1fr; } }
+
+  /* ---------- FAQ : left title col, right accordion, border #1c1f24 ---------- */
+  .faq-section{ padding: 120px 0; }
+  .faq-layout{
+    margin:0; padding: 0 var(--gutter);
+    display:grid; grid-template-columns: 572px 1fr; gap: 58px;
+  }
+  .faq-layout h2{ font-size:56px; line-height:70px; font-weight:800; letter-spacing:-0.56px; margin:0; }
+  .faq-item{ border-top:1px solid var(--border-subtle); }
+  .faq-item:last-child{ border-bottom:1px solid var(--border-subtle); }
+  .faq-q{
+    width:100%; text-align:left; background:none; border:none; color:#fff;
+    font-family:inherit; font-size:22px; font-weight:500; line-height:35.2px;
+    padding: 32px 0; display:flex; justify-content:space-between; align-items:center; gap:24px;
+    cursor:pointer;
+  }
+  .faq-q .cross{ position:relative; width:16px; height:16px; flex-shrink:0; }
+  .faq-q .cross i{ position:absolute; background:var(--text-faint); border-radius:1px; }
+  .faq-q .cross i:nth-child(1){ width:16px; height:2px; top:7px; left:0; }
+  .faq-q .cross i:nth-child(2){ width:2px; height:16px; top:0; left:7px; transition: transform .2s ease, opacity .2s ease; }
+  .faq-item.open .cross i:nth-child(2){ transform: rotate(90deg); opacity:0; }
+  .faq-a{ max-height:0; overflow:hidden; transition: max-height .3s ease; }
+  .faq-a p{ padding:0 40px 32px 0; margin:0; font-size:16px; line-height:1.6; color:var(--text-secondary); font-weight:400; }
+  @media (max-width: 860px){ .faq-layout{ grid-template-columns:1fr; gap:24px; } }
+
+  /* ---------- CTA : gradient #15171b -> #0e1012 ---------- */
+  .cta-band{
+    text-align:center; padding: 110px 32px;
+    background: linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg-app) 100%);
+    border-top: 1px solid var(--bg-card-border);
+  }
+  .cta-band h2{ font-size:56px; line-height:70px; font-weight:800; letter-spacing:-0.56px; margin:0 0 12px; }
+  .cta-band p{ font-size:20px; line-height:32px; color:var(--text-secondary); margin:0 0 40px; font-weight:400; }
+  .cta-actions{ display:flex; gap:20px; justify-content:center; }
+
+  /* ---------- footer ---------- */
+  .site-footer{ border-top:1px solid var(--bg-card-border); }
+  .footer-top-row{ padding: 56px var(--gutter) 0; }
+  .footer-grid{
+    margin:0; padding: 24px var(--gutter) 0;
+    display:grid; grid-template-columns: 185px 182px 182px 185px 185px 185px; gap: 40px;
+  }
+  .footer-col h5{ font-size:14px; font-weight:800; letter-spacing:1.4px; text-transform:uppercase; color:#fff; margin:0 0 22px; }
+  .footer-col h6{ font-size:14px; font-weight:800; letter-spacing:-0.14px; color:#fff; margin: 22px 0 12px; }
+  .footer-col h6:first-of-type{ margin-top:0; }
+  .footer-col a{ display:block; font-size:15px; line-height:21px; color: var(--text-muted); margin-bottom:12px; }
+  .footer-col a:hover{ color:#fff; }
+  .badge{ display:inline-block; background:var(--accent-badge); color:#fff; font-size:10px; font-weight:500; letter-spacing:0.7px; padding:3px 6px; border-radius:3px; margin-left:8px; vertical-align:middle; text-transform:uppercase; }
+  @media (max-width: 980px){ .footer-grid{ grid-template-columns: repeat(3,1fr); } }
+  @media (max-width: 620px){ .footer-grid{ grid-template-columns: repeat(2,1fr); } }
+
+  .footer-bottom{
+    margin: 40px 0 0; padding: 20px var(--gutter);
+    border-top:1px solid var(--bg-card-border);
+    display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;
+  }
+  .footer-bottom-left{ font-size:14px; color:var(--text-muted); display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .footer-bottom-left .div{ width:1px; height:16px; background:var(--bg-card-border); }
+  .footer-bottom-left a:hover{ color:#fff; }
+  .footer-social{ display:flex; gap:16px; }
+  .footer-social svg{ width:24px; height:24px; color: var(--text-muted); transition:color .15s ease; }
+  .footer-social a:hover svg{ color:#fff; }
+</style>
+</head>
+<body>
+
+<header class="site-header" id="siteHeader">
+  <div class="nav-inner">
+    <a href="#" class="brand" aria-label="Mapbox">
+      <svg viewBox="0 0 126 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M94.0376 7.66947C92.4586 7.66947 90.9434 8.31514 89.8429 9.44899V3.449C89.8429 3.26002 89.6834 3.10254 89.492 3.10254H87.3548C87.1634 3.10254 87.0039 3.26002 87.0039 3.449V19.6695C87.0039 19.8584 87.1634 20.0159 87.3548 20.0159H89.492C89.6834 20.0159 89.8429 19.8584 89.8429 19.6695V18.5514C90.9434 19.6852 92.4427 20.3309 94.0376 20.3309C97.371 20.3309 100.066 17.4962 100.066 14.0002C100.066 10.5041 97.371 7.66947 94.0376 7.66947ZM93.5432 17.7955C91.5176 17.7955 89.8748 16.1262 89.8589 14.0474V13.9529C89.8908 11.8742 91.5176 10.2049 93.5432 10.2049C95.5847 10.2049 97.2275 11.9057 97.2275 14.0002C97.2275 16.0947 95.5687 17.7955 93.5432 17.7955Z" fill="currentColor"/>
+        <path d="M107.93 7.66919C104.325 7.66919 101.406 10.5038 101.406 13.9999C101.406 17.496 104.325 20.3306 107.93 20.3306C111.534 20.3306 114.453 17.496 114.453 13.9999C114.453 10.5038 111.534 7.66919 107.93 7.66919ZM107.914 17.7952C105.872 17.7952 104.229 16.0944 104.229 13.9999C104.229 11.9054 105.888 10.2046 107.914 10.2046C109.939 10.2046 111.598 11.9054 111.598 13.9999C111.598 16.0944 109.939 17.7952 107.914 17.7952Z" fill="currentColor"/>
+        <path d="M68.0398 7.98415H65.9026C65.7112 7.98415 65.5517 8.14163 65.5517 8.33061V9.44872C64.4512 8.31486 62.9519 7.66919 61.357 7.66919C58.0236 7.66919 55.3281 10.5038 55.3281 13.9999C55.3281 17.496 58.0236 20.3306 61.357 20.3306C62.936 20.3306 64.4512 19.6849 65.5517 18.5511V19.6692C65.5517 19.8582 65.7112 20.0156 65.9026 20.0156H68.0398C68.2312 20.0156 68.3907 19.8582 68.3907 19.6692V8.33061C68.3907 8.14163 68.2312 7.98415 68.0398 7.98415ZM61.8514 17.7952C59.8099 17.7952 58.1671 16.0944 58.1671 13.9999C58.1671 11.9054 59.8259 10.2046 61.8514 10.2046C63.877 10.2046 65.5198 11.8739 65.5357 13.9527V14.0471C65.5198 16.1259 63.877 17.7952 61.8514 17.7952Z" fill="currentColor"/>
+        <path d="M78.7104 7.66919C77.1315 7.66919 75.6163 8.31486 74.5158 9.44872V8.33061C74.5158 8.14163 74.3563 7.98415 74.1649 7.98415H72.0276C71.8363 7.98415 71.6768 8.14163 71.6768 8.33061V24.5511C71.6768 24.7401 71.8363 24.8975 72.0276 24.8975H74.1649C74.3563 24.8975 74.5158 24.7401 74.5158 24.5511V18.5511C75.6163 19.6849 77.1155 20.3306 78.7104 20.3306C82.0439 20.3306 84.7393 17.496 84.7393 13.9999C84.7393 10.5038 82.0439 7.66919 78.7104 7.66919ZM78.216 17.7952C76.1904 17.7952 74.5477 16.1259 74.5317 14.0471V13.9527C74.5636 11.8739 76.1904 10.2046 78.216 10.2046C80.2575 10.2046 81.9003 11.9054 81.9003 13.9999C81.9003 16.0944 80.2575 17.7952 78.216 17.7952Z" fill="currentColor"/>
+        <path d="M48.9329 7.66915C47.338 7.68489 45.8866 8.59828 45.2008 10.0314C44.4193 8.56678 42.8562 7.6534 41.1815 7.66915C39.8737 7.66915 38.6456 8.29907 37.88 9.33844V8.33056C37.88 8.14159 37.7205 7.98411 37.5291 7.98411H35.3919C35.2005 7.98411 35.041 8.14159 35.041 8.33056V19.6691C35.041 19.8581 35.2005 20.0156 35.3919 20.0156H37.5291C37.7205 20.0156 37.88 19.8581 37.88 19.6691V12.8817C37.9598 11.3699 39.0284 10.1573 40.3362 10.1573C41.6919 10.1573 42.8243 11.2754 42.8243 12.74V19.6691C42.8243 19.8581 42.9838 20.0156 43.1752 20.0156H45.3284C45.5198 20.0156 45.6793 19.8581 45.6793 19.6691L45.6633 12.614C45.8547 11.2282 46.8595 10.1573 48.0876 10.1573C49.4433 10.1573 50.5757 11.2754 50.5757 12.74V19.6691C50.5757 19.8581 50.7352 20.0156 50.9266 20.0156H53.0798C53.2712 20.0156 53.4307 19.8581 53.4307 19.6691L53.4147 11.8739C53.4147 9.54316 51.4051 7.66915 48.9329 7.66915Z" fill="currentColor"/>
+        <path d="M125.953 19.5276L122.252 13.9685L125.921 8.45669C126.016 8.31496 125.969 8.11024 125.825 8.01575C125.777 7.98425 125.713 7.96851 125.65 7.96851H123.177C122.986 7.96851 122.811 8.06299 122.715 8.22047L120.562 11.7953L118.409 8.23622C118.313 8.07874 118.137 7.98425 117.946 7.98425H115.474C115.298 7.98425 115.155 8.12599 115.155 8.29921C115.155 8.36221 115.171 8.4252 115.203 8.47244L118.871 13.9843L115.171 19.5433C115.075 19.685 115.123 19.8898 115.267 19.9843C115.314 20.0158 115.378 20.0315 115.442 20.0315H117.914C118.106 20.0315 118.281 19.937 118.377 19.7795L120.578 16.1575L122.779 19.7795C122.874 19.937 123.05 20.0315 123.241 20.0315H125.682C125.857 20.0315 126.001 19.8898 126.001 19.7165C126.001 19.6535 125.985 19.5906 125.953 19.5276Z" fill="currentColor"/>
+        <path d="M14.179 0C6.34786 0 0 6.26772 0 14C0 21.7323 6.34786 28 14.179 28C22.0102 28 28.358 21.7323 28.358 14C28.358 6.26772 22.0102 0 14.179 0ZM20.9097 17.4331C16.061 22.2205 7.40052 20.6929 7.40052 20.6929C7.40052 20.6929 5.83748 12.1575 10.702 7.35433C13.3975 4.69291 17.8633 4.80315 20.6864 7.5748C23.5094 10.3465 23.6051 14.7717 20.9097 17.4331Z" fill="currentColor"/>
+        <path d="M15.806 8.20459L14.4184 11.0235L11.5635 12.3936L14.4184 13.7636L15.806 16.5825L17.1936 13.7636L20.0486 12.3936L17.1936 11.0235L15.806 8.20459Z" fill="currentColor"/>
+      </svg>
+    </a>
+    <nav class="nav-links">
+      <a href="#">Products <svg class="caret" viewBox="0 0 7 5" fill="none"><path d="M3.87796 4.56356C3.67858 4.79379 3.32142 4.79379 3.12204 4.56356L0.319371 1.32733C0.0389327 1.00351 0.268959 0.5 0.697336 0.5L6.30267 0.500001C6.73104 0.500001 6.96107 1.00351 6.68063 1.32733L3.87796 4.56356Z" fill="currentColor"/></svg></a>
+      <a href="#">Solutions <svg class="caret" viewBox="0 0 7 5" fill="none"><path d="M3.87796 4.56356C3.67858 4.79379 3.32142 4.79379 3.12204 4.56356L0.319371 1.32733C0.0389327 1.00351 0.268959 0.5 0.697336 0.5L6.30267 0.500001C6.73104 0.500001 6.96107 1.00351 6.68063 1.32733L3.87796 4.56356Z" fill="currentColor"/></svg></a>
+      <a href="#">Developers <svg class="caret" viewBox="0 0 7 5" fill="none"><path d="M3.87796 4.56356C3.67858 4.79379 3.32142 4.79379 3.12204 4.56356L0.319371 1.32733C0.0389327 1.00351 0.268959 0.5 0.697336 0.5L6.30267 0.500001C6.73104 0.500001 6.96107 1.00351 6.68063 1.32733L3.87796 4.56356Z" fill="currentColor"/></svg></a>
+      <a href="#">Company <svg class="caret" viewBox="0 0 7 5" fill="none"><path d="M3.87796 4.56356C3.67858 4.79379 3.32142 4.79379 3.12204 4.56356L0.319371 1.32733C0.0389327 1.00351 0.268959 0.5 0.697336 0.5L6.30267 0.500001C6.73104 0.500001 6.96107 1.00351 6.68063 1.32733L3.87796 4.56356Z" fill="currentColor"/></svg></a>
+      <a href="#">Customers</a>
+      <a href="#">Pricing</a>
+      <a href="#">Blog</a>
+    </nav>
+    <div class="nav-right">
+      <a href="#" class="link">Log in</a>
+      <a href="#" class="btn btn-primary btn-header">Sign up</a>
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero" id="heroScroll" style="height: 420vh;">
+  <div class="hero-sticky">
+
+    <div class="hero-video-wrap" id="canvasWrap">
+      <canvas id="heroCanvas"></canvas>
+    </div>
+
+    <div class="hero-scrim"></div>
+
+    <div class="hero-copy">
+      <div class="inner">
+        <h1><span class="line1">Mapbox</span><span class="line2">3D Live navigation</span></h1>
+        <p>Mapbox 3D Lanes changes the navigation game. Clear lane-level guidance shows drivers where they need to be to make a turn. 3D map details help drivers instantly orient themselves for a next-level experience that feels effortless.</p>
+        <div class="hero-cta">
+          <a href="#" class="btn btn-primary">Get started for free</a>
+          <a href="#" class="btn btn-ghost-hero">Book a test drive</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="scroll-hint" id="scrollHint"><span>Scroll</span><span class="dash"></span></div>
+  </div>
+</section>
+
+<div class="hero-tabs">
+  <a href="#next-gen" class="tab-link">Real roads</a>
+  <a href="#see-around" class="tab-link">Live surroundings</a>
+  <a href="#lane-guidance" class="tab-link">Lane guidance</a>
+  <a href="#features" class="tab-link">More features</a>
+  <a href="#customers" class="tab-link">Customer stories</a>
+</div>
+
+<!-- LANE ROWS -->
+<div id="lane-rows">
+
+  <section class="callouts-section" id="next-gen">
+    <div class="callout-row reveal">
+      <div class="callout-text">
+        <h3>A live mirror of the road</h3>
+        <p>The map shows the road itself — the same junctions, lanes and markings you see through the glass — so you know where to go without decoding a flat arrow.</p>
+      </div>
+      <div class="callout-visual"><img src="images/callout1.png" alt="In-car dashboard showing a live 3D map matching the real junction ahead"></div>
+    </div>
+    <div class="callout-row callout-row-reverse reveal">
+      <div class="callout-text">
+        <h3>Everything around you, live</h3>
+        <p>Surrounding vehicles, pedestrians, roadworks and lane closures appear in their real positions as they happen — the same awareness your driver-assist systems have, shown on the map.</p>
+      </div>
+      <div class="callout-visual"><img src="images/callout2.png" alt="Intersection view showing surrounding traffic, pedestrians and a nearby point of interest"></div>
+    </div>
+    <div class="callout-row reveal">
+      <div class="callout-text">
+        <h3>Precise to your exact lane</h3>
+        <p>The map knows the specific lane you're in — so guidance can point to a lane, not just a direction.</p>
+      </div>
+      <div class="callout-visual"><img src="images/callout3.png" alt="Multi-lane road with the driver's specific lane highlighted through a turn"></div>
+    </div>
+  </section>
+
+  <section class="bmw-showcase" id="bmw-showcase">
+    <div class="bmw-scroll-wrap" id="bmwScrollWrap">
+      <div class="bmw-sticky">
+        <div class="bmw-media" id="bmwMedia">
+          <video src="videos/bmw-7-series.webm" autoplay muted loop playsinline aria-label="BMW 7 Series driving through a city street lined with palm trees"></video>
+        </div>
+        <div class="bmw-overlay">
+          <div class="bmw-logo"><img src="images/bmw-logo.svg" alt="BMW"></div>
+          <div class="bmw-overlay-text">
+            <h2>Experience new navigation with BMW Series 7</h2>
+            <a href="#" class="btn btn-primary">Watch now</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lane-row" id="see-around">
+    <div class="lane-row-title reveal">
+      <h2>See exactly where you are — and what's around you</h2>
+      <p>Where driver-assist data is available, the live 3D view fills in the world moving around you.</p>
+    </div>
+    <div class="card-track" id="row2">
+      <div class="lane-card reveal">
+        <div class="lane-card-visual"><img src="images/row2-card1.png" alt="Top-down map view of a vehicle positioned precisely in its lane at a roundabout"></div>
+        <div class="lane-card-text"><h3>Positioned to the lane</h3><p>The vehicle sits in the lane it's actually in, not somewhere on the road's centreline.</p></div>
+      </div>
+      <div class="lane-card reveal">
+        <div class="lane-card-visual"><img src="images/row2-card2.png" alt="Overhead view of a vehicle's camera detection cones covering the road"></div>
+        <div class="lane-card-text"><h3>Using the car's own eyes</h3><p>Positioning comes from the vehicle's existing cameras matched against map reference features. No extra sensor hardware.</p></div>
+      </div>
+      <div class="lane-card reveal">
+        <div class="lane-card-visual"><img src="images/row2-card3.png" alt="In-car dashboard map view showing surrounding traffic on the road"></div>
+        <div class="lane-card-text"><h3>The traffic around you, on the map</h3><p>Surrounding vehicles appear where they actually are, moving as they actually move.</p></div>
+      </div>
+      <div class="lane-card reveal">
+        <div class="lane-card-visual"></div>
+        <div class="lane-card-text"><h3>Things that weren't there yesterday</h3><p>Cones, pylons, a closed lane. The transient world no survey pass can capture.</p></div>
+      </div>
+    </div>
+    <div class="lane-row-foot">
+      <div class="dots"><i class="active"></i><i></i><i></i><i></i></div>
+      <div class="row-arrows">
+        <button class="arrow-btn" data-prev="row2"><svg viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 1L2 12l10 11"/></svg></button>
+        <button class="arrow-btn" data-next="row2"><svg viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 1l10 11L2 23"/></svg></button>
+      </div>
+    </div>
+  </section>
+
+  <section class="lane-row" id="lane-guidance">
+    <div class="lane-row-title reveal size-lg">
+      <h2>Guidance that knows which lane you're in</h2>
+      <p>Positioning precise enough to place your car in the right lane — and keep guidance clear right when it matters.</p>
+    </div>
+    <div class="card-track" id="row3">
+      <div class="lane-card reveal">
+        <div class="lane-card-visual"></div>
+        <div class="lane-card-text"><h3>Detail where it counts</h3><p>The experience concentrates precision in the zone the driver is about to drive through.</p></div>
+      </div>
+      <div class="lane-card reveal">
+        <div class="lane-card-visual"></div>
+        <div class="lane-card-text"><h3>Which lane, and when</h3><p>Guidance resolves to a specific lane at a specific moment, not a direction and a hope.</p></div>
+      </div>
+      <div class="lane-card reveal">
+        <div class="lane-card-visual"></div>
+        <div class="lane-card-text"><h3>Held, and moved over</h3><p>Active lane guidance keeps the driver in the right lane; lane-change assistance moves them across when the route needs it.</p></div>
+      </div>
+    </div>
+    <div class="lane-row-foot">
+      <div class="dots"><i class="active"></i><i></i><i></i></div>
+      <div class="row-arrows">
+        <button class="arrow-btn" data-prev="row3"><svg viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 1L2 12l10 11"/></svg></button>
+        <button class="arrow-btn" data-next="row3"><svg viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 1l10 11L2 23"/></svg></button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- MORE FEATURES -->
+<section class="features-section" id="features">
+  <h2 class="features-title reveal">More features</h2>
+  <div class="features-grid">
+    <div class="features-row features-row-3">
+      <div class="feature-card reveal">
+        <div class="feature-icon"><img src="images/icon-pentip.svg" alt=""></div>
+        <h3>Designed to run in-car</h3>
+        <p>Runs on Android or Linux and can be modified to run on embedded hardware.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon"><img src="images/icon-cycle.png" alt=""></div>
+        <h3>Instant map updates</h3>
+        <p>Mapbox continuously improves underlying map data. Over-the-air updates are separate from application updates.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon"><img src="images/icon-camcorder.svg" alt=""></div>
+        <h3>Optimized camera views</h3>
+        <p>The camera view automatically adjusts to the best angle and zoom level for upcoming maneuvers and UI overlays.</p>
+      </div>
+    </div>
+    <div class="features-row features-row-2">
+      <div class="feature-card reveal">
+        <div class="feature-icon"><img src="images/icon-journey-electric.png" alt=""></div>
+        <h3>Mapbox EV Charge Finder API</h3>
+        <p>Help drivers plan journeys and eliminate range anxiety by seeing ideal charging stops along a route, including live availability status, charging network type, cost, nearby amenities and more.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon"><img src="images/icon-devices.png" alt=""></div>
+        <h3>Any screen. Or all of them.</h3>
+        <p>Develop once, deploy anywhere because the map and UI components automatically adjust for any screen size, ratio, or resolution.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CUSTOMER TESTIMONIAL SLIDESHOW -->
+<section class="customers-section" id="customers">
+  <h2 class="customers-title reveal">Customer stories</h2>
+  <div class="testimonial-viewport">
+    <div class="testimonial-frame reveal" id="testiFrame">
+      <div class="testimonial-slide t-bmw active" data-slide="0">
+        <div class="testimonial-content">
+          <div class="testimonial-company">BMW</div>
+          <p class="testimonial-quote">"Mapbox is the best partner to power our next-generation in-car navigation"</p>
+        </div>
+      </div>
+      <div class="testimonial-slide t-toyota" data-slide="1">
+        <div class="testimonial-content">
+          <div class="testimonial-company">Toyota</div>
+          <p class="testimonial-quote">"With Mapbox, we are able to make changes quickly to elevate the user experience."</p>
+        </div>
+      </div>
+      <div class="testimonial-slide t-hyundai" data-slide="2">
+        <div class="testimonial-content">
+          <div class="testimonial-company">Hyundai AutoEver</div>
+          <p class="testimonial-quote">"We were able to customize the Mapbox map… something not possible on other platforms."</p>
+        </div>
+      </div>
+    </div>
+    <div class="testimonial-foot">
+      <div class="dots" id="testiDots"><i class="active"></i><i></i><i></i></div>
+      <div class="row-arrows">
+        <button class="arrow-btn" id="testiPrev"><svg viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 1L2 12l10 11"/></svg></button>
+        <button class="arrow-btn" id="testiNext"><svg viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 1l10 11L2 23"/></svg></button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="faq-section" id="faq">
+  <div class="faq-layout">
+    <h2 class="reveal">Frequently<br>Asked Questions</h2>
+    <div id="faqList" class="reveal">
+      <div class="faq-item open">
+        <button class="faq-q">What does the Mapbox Navigation SDK for Automotive include?<span class="cross"><i></i><i></i></span></button>
+        <div class="faq-a"><p>The Mapbox Navigation SDK provides everything needed to build a fully integrated in-vehicle navigation experience, including maps, routing, turn-by-turn guidance, and UI components. It also supports advanced features like live traffic, lane guidance, and offline navigation — without requiring teams to maintain underlying data or algorithms.</p></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">How customizable is the navigation experience for automakers?<span class="cross"><i></i><i></i></span></button>
+        <div class="faq-a"><p>The Mapbox Navigation SDK is highly modular and customizable, allowing automakers to design branded, differentiated navigation experiences. Teams can tailor everything from map styling and UI components to interaction models.</p></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">What is the frequency and method for map data updates?<span class="cross"><i></i><i></i></span></button>
+        <div class="faq-a"><p>Map updates are sent as incremental "delta" updates over the air. Instead of downloading entire map regions, the SDK only fetches map tiles or specific attribute changes, keeping the onboard map current with minimal bandwidth consumption.</p></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">How does the SDK handle navigation in areas with poor or no cellular connectivity?<span class="cross"><i></i><i></i></span></button>
+        <div class="faq-a"><p>Mapbox Navigation SDK features a hybrid-first architecture, using local, onboard map data for routing and guidance when offline, then seamlessly synchronizing with cloud services once a connection is restored.</p></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Does the SDK support EV routing and connected vehicle features?<span class="cross"><i></i><i></i></span></button>
+        <div class="faq-a"><p>Yes. The SDK includes EV-specific capabilities such as range-aware routing and charging station discovery with real-time availability, plus integration with vehicle systems for energy monitoring and voice control.</p></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">Can the Mapbox Navigation SDK integrate with voice assistants and AI features?<span class="cross"><i></i><i></i></span></button>
+        <div class="faq-a"><p>Yes. The SDK includes support for AI-powered voice assistants, enabling natural, conversational interactions for navigation, search, and in-vehicle controls.</p></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">How does Mapbox improve driver safety and usability?<span class="cross"><i></i><i></i></span></button>
+        <div class="faq-a"><p>Mapbox enhances safety through real-time traffic updates, lane-level guidance, and alerts for incidents or conditions along the route, reducing distraction and improving driver awareness.</p></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">How does the Mapbox Navigation SDK integrate with Advanced Driver Assistance Systems (ADAS)?<span class="cross"><i></i><i></i></span></button>
+        <div class="faq-a"><p>The SDK provides an ADAS map horizon via a dedicated data feed, delivering high-precision attributes — curvature, slope, speed limits, lane-level geometry — to the vehicle's ECUs for predictive features like adaptive cruise control.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-band">
+  <h2 class="reveal">Ready to get started?</h2>
+  <p class="reveal">Create an account or talk to one of our experts.</p>
+  <div class="cta-actions reveal">
+    <a href="#" class="btn btn-primary">Sign up for free</a>
+    <a href="#" class="btn btn-ghost-dark">Contact us</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="site-footer">
+  <div class="footer-top-row">
+    <a href="#" class="brand" aria-label="Mapbox">
+      <svg viewBox="0 0 126 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M94.0376 7.66947C92.4586 7.66947 90.9434 8.31514 89.8429 9.44899V3.449C89.8429 3.26002 89.6834 3.10254 89.492 3.10254H87.3548C87.1634 3.10254 87.0039 3.26002 87.0039 3.449V19.6695C87.0039 19.8584 87.1634 20.0159 87.3548 20.0159H89.492C89.6834 20.0159 89.8429 19.8584 89.8429 19.6695V18.5514C90.9434 19.6852 92.4427 20.3309 94.0376 20.3309C97.371 20.3309 100.066 17.4962 100.066 14.0002C100.066 10.5041 97.371 7.66947 94.0376 7.66947ZM93.5432 17.7955C91.5176 17.7955 89.8748 16.1262 89.8589 14.0474V13.9529C89.8908 11.8742 91.5176 10.2049 93.5432 10.2049C95.5847 10.2049 97.2275 11.9057 97.2275 14.0002C97.2275 16.0947 95.5687 17.7955 93.5432 17.7955Z" fill="currentColor"/>
+        <path d="M107.93 7.66919C104.325 7.66919 101.406 10.5038 101.406 13.9999C101.406 17.496 104.325 20.3306 107.93 20.3306C111.534 20.3306 114.453 17.496 114.453 13.9999C114.453 10.5038 111.534 7.66919 107.93 7.66919ZM107.914 17.7952C105.872 17.7952 104.229 16.0944 104.229 13.9999C104.229 11.9054 105.888 10.2046 107.914 10.2046C109.939 10.2046 111.598 11.9054 111.598 13.9999C111.598 16.0944 109.939 17.7952 107.914 17.7952Z" fill="currentColor"/>
+        <path d="M68.0398 7.98415H65.9026C65.7112 7.98415 65.5517 8.14163 65.5517 8.33061V9.44872C64.4512 8.31486 62.9519 7.66919 61.357 7.66919C58.0236 7.66919 55.3281 10.5038 55.3281 13.9999C55.3281 17.496 58.0236 20.3306 61.357 20.3306C62.936 20.3306 64.4512 19.6849 65.5517 18.5511V19.6692C65.5517 19.8582 65.7112 20.0156 65.9026 20.0156H68.0398C68.2312 20.0156 68.3907 19.8582 68.3907 19.6692V8.33061C68.3907 8.14163 68.2312 7.98415 68.0398 7.98415ZM61.8514 17.7952C59.8099 17.7952 58.1671 16.0944 58.1671 13.9999C58.1671 11.9054 59.8259 10.2046 61.8514 10.2046C63.877 10.2046 65.5198 11.8739 65.5357 13.9527V14.0471C65.5198 16.1259 63.877 17.7952 61.8514 17.7952Z" fill="currentColor"/>
+        <path d="M78.7104 7.66919C77.1315 7.66919 75.6163 8.31486 74.5158 9.44872V8.33061C74.5158 8.14163 74.3563 7.98415 74.1649 7.98415H72.0276C71.8363 7.98415 71.6768 8.14163 71.6768 8.33061V24.5511C71.6768 24.7401 71.8363 24.8975 72.0276 24.8975H74.1649C74.3563 24.8975 74.5158 24.7401 74.5158 24.5511V18.5511C75.6163 19.6849 77.1155 20.3306 78.7104 20.3306C82.0439 20.3306 84.7393 17.496 84.7393 13.9999C84.7393 10.5038 82.0439 7.66919 78.7104 7.66919ZM78.216 17.7952C76.1904 17.7952 74.5477 16.1259 74.5317 14.0471V13.9527C74.5636 11.8739 76.1904 10.2046 78.216 10.2046C80.2575 10.2046 81.9003 11.9054 81.9003 13.9999C81.9003 16.0944 80.2575 17.7952 78.216 17.7952Z" fill="currentColor"/>
+        <path d="M48.9329 7.66915C47.338 7.68489 45.8866 8.59828 45.2008 10.0314C44.4193 8.56678 42.8562 7.6534 41.1815 7.66915C39.8737 7.66915 38.6456 8.29907 37.88 9.33844V8.33056C37.88 8.14159 37.7205 7.98411 37.5291 7.98411H35.3919C35.2005 7.98411 35.041 8.14159 35.041 8.33056V19.6691C35.041 19.8581 35.2005 20.0156 35.3919 20.0156H37.5291C37.7205 20.0156 37.88 19.8581 37.88 19.6691V12.8817C37.9598 11.3699 39.0284 10.1573 40.3362 10.1573C41.6919 10.1573 42.8243 11.2754 42.8243 12.74V19.6691C42.8243 19.8581 42.9838 20.0156 43.1752 20.0156H45.3284C45.5198 20.0156 45.6793 19.8581 45.6793 19.6691L45.6633 12.614C45.8547 11.2282 46.8595 10.1573 48.0876 10.1573C49.4433 10.1573 50.5757 11.2754 50.5757 12.74V19.6691C50.5757 19.8581 50.7352 20.0156 50.9266 20.0156H53.0798C53.2712 20.0156 53.4307 19.8581 53.4307 19.6691L53.4147 11.8739C53.4147 9.54316 51.4051 7.66915 48.9329 7.66915Z" fill="currentColor"/>
+        <path d="M125.953 19.5276L122.252 13.9685L125.921 8.45669C126.016 8.31496 125.969 8.11024 125.825 8.01575C125.777 7.98425 125.713 7.96851 125.65 7.96851H123.177C122.986 7.96851 122.811 8.06299 122.715 8.22047L120.562 11.7953L118.409 8.23622C118.313 8.07874 118.137 7.98425 117.946 7.98425H115.474C115.298 7.98425 115.155 8.12599 115.155 8.29921C115.155 8.36221 115.171 8.4252 115.203 8.47244L118.871 13.9843L115.171 19.5433C115.075 19.685 115.123 19.8898 115.267 19.9843C115.314 20.0158 115.378 20.0315 115.442 20.0315H117.914C118.106 20.0315 118.281 19.937 118.377 19.7795L120.578 16.1575L122.779 19.7795C122.874 19.937 123.05 20.0315 123.241 20.0315H125.682C125.857 20.0315 126.001 19.8898 126.001 19.7165C126.001 19.6535 125.985 19.5906 125.953 19.5276Z" fill="currentColor"/>
+        <path d="M14.179 0C6.34786 0 0 6.26772 0 14C0 21.7323 6.34786 28 14.179 28C22.0102 28 28.358 21.7323 28.358 14C28.358 6.26772 22.0102 0 14.179 0ZM20.9097 17.4331C16.061 22.2205 7.40052 20.6929 7.40052 20.6929C7.40052 20.6929 5.83748 12.1575 10.702 7.35433C13.3975 4.69291 17.8633 4.80315 20.6864 7.5748C23.5094 10.3465 23.6051 14.7717 20.9097 17.4331Z" fill="currentColor"/>
+        <path d="M15.806 8.20459L14.4184 11.0235L11.5635 12.3936L14.4184 13.7636L15.806 16.5825L17.1936 13.7636L20.0486 12.3936L17.1936 11.0235L15.806 8.20459Z" fill="currentColor"/>
+      </svg>
+    </a>
+  </div>
+
+  <div class="footer-grid">
+    <div class="footer-col">
+      <a href="#">Sign Up</a><a href="#">Pricing</a><a href="#">Support</a><a href="#">Contact Us</a>
+    </div>
+    <div class="footer-col">
+      <h5>Products</h5>
+      <h6>Maps</h6>
+      <a href="#">Maps Overview</a><a href="#">Mapbox GL JS</a><a href="#">Mobile Maps SDK</a><a href="#">Studio</a><a href="#">Static Maps</a><a href="#">Mapbox Tiling Service</a>
+      <h6>Search</h6>
+      <a href="#">Search Overview</a><a href="#">Search Box</a><a href="#">Geocoding</a><a href="#">Address Autofill</a>
+      <h6>Other</h6>
+      <a href="#">Atlas</a>
+    </div>
+    <div class="footer-col">
+      <h5 style="visibility:hidden;">&nbsp;</h5>
+      <h6 style="margin-top:0;">Navigation</h6>
+      <a href="#">Navigation Overview</a><a href="#">Navigation for Automotive</a><a href="#">Navigation for Mobile</a><a href="#">MapGPT</a><a href="#">Matrix API</a><a href="#">Mapbox for EV</a><a href="#">ADAS SDK</a>
+      <h6>Data</h6>
+      <a href="#">Data Overview</a><a href="#">Traffic Data</a><a href="#">Movement Data</a><a href="#">Boundaries</a>
+    </div>
+    <div class="footer-col">
+      <h5>Solutions</h5>
+      <a href="#">Automotive</a><a href="#">Business Intelligence</a><a href="#">On-Demand Logistics</a><a href="#">Weather</a><a href="#">Telecommunications</a><a href="#">Outdoors</a><a href="#">Retail</a><a href="#">Real Estate</a><a href="#">Travel</a><a href="#">Drones &amp; Robots</a>
+    </div>
+    <div class="footer-col">
+      <h5>Developers</h5>
+      <a href="#">Documentation</a><a href="#">Quickstart</a><a href="#">Troubleshooting</a><a href="#">Platform</a><a href="#">Status</a><a href="#">Support</a>
+      <h5 style="margin-top:22px;">Resources</h5>
+      <a href="#">Newsletter <span class="badge">Subscribe</span></a><a href="#">Customer Showcases</a><a href="#">Blog</a><a href="#">Webinars</a><a href="#">Downloadables</a>
+    </div>
+    <div class="footer-col">
+      <h5>Company</h5>
+      <a href="#">Who we are</a><a href="#">What we do</a><a href="#">What we value</a><a href="#">Newsroom</a><a href="#">Careers <span class="badge">Hiring</span></a><a href="#">Sustainability</a><a href="#">Nonprofit support</a>
+    </div>
+  </div>
+
+  <div class="footer-bottom">
+    <div class="footer-bottom-left">
+      <span>All Rights Reserved © Mapbox</span>
+      <span class="div"></span>
+      <a href="#">Terms</a><span class="div"></span>
+      <a href="#">Privacy</a><span class="div"></span>
+      <a href="#">Security</a><span class="div"></span>
+      <a href="#">Your California Privacy Choices</a>
+    </div>
+    <div class="footer-social">
+      <a href="#"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 5.9c-.7.3-1.5.6-2.3.7.8-.5 1.5-1.3 1.8-2.3-.8.5-1.7.8-2.6 1a4.1 4.1 0 0 0-7 3.8A11.7 11.7 0 0 1 3.4 4.9a4.2 4.2 0 0 0 1.3 5.6c-.7 0-1.3-.2-1.9-.5v.1c0 2 1.4 3.7 3.3 4a4 4 0 0 1-1.9.1 4.1 4.1 0 0 0 3.9 2.9A8.3 8.3 0 0 1 2 18.6a11.6 11.6 0 0 0 6.3 1.9c7.5 0 11.7-6.4 11.7-11.9v-.5c.8-.6 1.5-1.3 2-2.2z"/></svg></a>
+      <a href="#"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM8.3 18H5.7V9.6h2.6V18zM7 8.4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zM18.3 18h-2.6v-4.3c0-1-.4-1.7-1.3-1.7-.7 0-1.1.5-1.3 1-.1.2-.1.5-.1.7V18h-2.6s.1-7.6 0-8.4h2.6v1.2c.3-.5 1-1.3 2.4-1.3 1.7 0 3 1.1 3 3.6V18z"/></svg></a>
+      <a href="#"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.5 2 12c0 4.4 2.9 8.2 6.8 9.5.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1-1.5-1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.9.8.1-.7.3-1.1.6-1.4-2.2-.2-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.2-.4-1.3.1-2.6 0 0 .8-.3 2.7 1a9.3 9.3 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.3.2 2.4.1 2.6.6.7 1 1.6 1 2.7 0 3.9-2.4 4.7-4.6 5 .3.3.6.9.6 1.8v2.6c0 .3.2.6.7.5A10 10 0 0 0 22 12c0-5.5-4.5-10-10-10z"/></svg></a>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const header = document.getElementById('siteHeader');
+  const heroScroll = document.getElementById('heroScroll');
+  function onHeaderScroll(){
+    /* solid bg + bottom border only once the hero scroll-sequence is fully behind us */
+    const heroScrollDistance = heroScroll.offsetHeight - window.innerHeight;
+    header.classList.toggle('solid', window.scrollY >= heroScrollDistance);
+  }
+
+  const FRAME_COUNT = 406;
+  const FRAME_PATH = (i) => `frames/frame_${String(i).padStart(4,'0')}.jpg`;
+  const canvas = document.getElementById('heroCanvas');
+  const ctx = canvas.getContext('2d');
+  const scrollHint = document.getElementById('scrollHint');
+  const canvasWrap = document.getElementById('canvasWrap');
+
+  const images = [];
+  for(let i=1; i<=FRAME_COUNT; i++){
+    const img = new Image();
+    img.onload = () => { if(i === 1) drawFrame(0); };
+    img.src = FRAME_PATH(i);
+    images.push(img);
+  }
+  const frames = images; // keep downstream references (frames.length) working
+
+  let lastFrameIdx = -1;
+  function resizeCanvas(){
+    const rect = canvasWrap.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    if(images.length && images[0].complete) drawFrame(lastFrameIdx >= 0 ? lastFrameIdx : 0);
+  }
+
+  function drawFrame(idx){
+    const img = images[idx];
+    if(!img || !img.complete || !img.naturalWidth) return;
+    const cw = canvas.width, ch = canvas.height;
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    const scale = Math.max(cw/iw, ch/ih);
+    const dw = iw*scale, dh = ih*scale;
+    const dx = (cw-dw)/2, dy = (ch-dh)/2;
+    ctx.clearRect(0,0,cw,ch);
+    ctx.drawImage(img, dx, dy, dw, dh);
+  }
+
+  function onHeroScroll(){
+    if(!frames.length) return;
+    const rect = heroScroll.getBoundingClientRect();
+    const total = heroScroll.offsetHeight - window.innerHeight;
+    const scrolled = -rect.top;
+    let raw = total > 0 ? scrolled/total : 0;
+    raw = Math.min(Math.max(raw, 0), 1);
+    scrollHint.style.opacity = (raw > 0.001) ? '0' : '1';
+    const idx = Math.round(raw * (frames.length - 1));
+    if(idx !== lastFrameIdx){ drawFrame(idx); lastFrameIdx = idx; }
+  }
+
+  let ticking = false;
+  function onScroll(){
+    if(!ticking){
+      requestAnimationFrame(() => { onHeaderScroll(); onHeroScroll(); onBmwScroll(); ticking = false; });
+      ticking = true;
+    }
+  }
+  window.addEventListener('scroll', onScroll, { passive:true });
+  window.addEventListener('resize', () => { resizeCanvas(); onScroll(); });
+  resizeCanvas();
+  onScroll();
+
+  if(reduceMotion){
+    if(images.length){ drawFrame(images.length-1); }
+    scrollHint.style.display = 'none';
+  }
+
+  /* hero title/copy fade-in on page load */
+  const heroCopy = document.querySelector('.hero-copy');
+  if(reduceMotion){
+    heroCopy.classList.add('loaded');
+  } else {
+    requestAnimationFrame(() => requestAnimationFrame(() => heroCopy.classList.add('loaded')));
+  }
+
+  /* scroll-reveal: fade + rise each block in as it enters the viewport (Apple-style) */
+  const revealEls = document.querySelectorAll('.reveal');
+  if(reduceMotion){
+    revealEls.forEach(el => el.classList.add('in-view'));
+  } else if('IntersectionObserver' in window){
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if(entry.isIntersecting){
+          entry.target.classList.add('in-view');
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.15, rootMargin: '0px 0px -10% 0px' });
+    revealEls.forEach(el => revealObserver.observe(el));
+  } else {
+    revealEls.forEach(el => el.classList.add('in-view'));
+  }
+
+  /* BMW showcase: full-bleed media shrinks to page-content width + rounded corners as you
+     scroll past it, then holds that size for the rest of the pin (Apple studio-display-xdr
+     "Image Quality" pattern). */
+  const bmwScrollWrap = document.getElementById('bmwScrollWrap');
+  const bmwMedia = document.getElementById('bmwMedia');
+  const BMW_TARGET_RADIUS = 24;
+  function onBmwScroll(){
+    if(!bmwScrollWrap) return;
+    const rect = bmwScrollWrap.getBoundingClientRect();
+    const animDistance = window.innerHeight * 0.8;
+    let raw = -rect.top / animDistance;
+    raw = Math.min(Math.max(raw, 0), 1);
+    const gutter = Math.max(32, (window.innerWidth - 1344) / 2);
+    const targetScale = (window.innerWidth - gutter * 2) / window.innerWidth;
+    const scale = 1 - (1 - targetScale) * raw;
+    const radius = BMW_TARGET_RADIUS * raw;
+    bmwMedia.style.transform = `scale(${scale})`;
+    bmwMedia.style.borderRadius = radius + 'px';
+  }
+  if(reduceMotion && bmwMedia){
+    bmwMedia.style.transform = 'none';
+  }
+
+  /* All placeholder links/buttons: keep :hover styling, but do nothing on click */
+  document.querySelectorAll('a[href="#"]').forEach(a => {
+    a.addEventListener('click', (e) => e.preventDefault());
+  });
+
+  /* FAQ accordion */
+  document.querySelectorAll('.faq-item').forEach(item => {
+    const q = item.querySelector('.faq-q');
+    const a = item.querySelector('.faq-a');
+    function setState(open){
+      item.classList.toggle('open', open);
+      a.style.maxHeight = open ? a.scrollHeight + 'px' : '0px';
+    }
+    setState(item.classList.contains('open'));
+    q.addEventListener('click', () => setState(!item.classList.contains('open')));
+  });
+
+  /* user-driven horizontal card carousels (arrows + drag) */
+  function initTrack(track){
+    if(!track) return null;
+    function stepWidth(){
+      const card = track.firstElementChild;
+      if(!card) return 400;
+      const style = getComputedStyle(track);
+      return card.getBoundingClientRect().width + parseFloat(style.gap || 40);
+    }
+    let isDown=false, startX=0, startScroll=0;
+    track.addEventListener('mousedown', e=>{ isDown=true; track.classList.add('dragging'); startX=e.pageX; startScroll=track.scrollLeft; });
+    window.addEventListener('mouseup', ()=>{ isDown=false; track.classList.remove('dragging'); });
+    window.addEventListener('mousemove', e=>{ if(!isDown) return; e.preventDefault(); track.scrollLeft = startScroll - (e.pageX-startX); });
+    return { scrollByCards:(dir)=> track.scrollBy({ left: dir*stepWidth(), behavior:'smooth' }) };
+  }
+  const rowCtrl = {};
+  ['row1','row2','row3'].forEach(id => rowCtrl[id] = initTrack(document.getElementById(id)));
+  document.querySelectorAll('.arrow-btn[data-prev]').forEach(b => b.addEventListener('click', ()=> rowCtrl[b.dataset.prev].scrollByCards(-1)));
+  document.querySelectorAll('.arrow-btn[data-next]').forEach(b => b.addEventListener('click', ()=> rowCtrl[b.dataset.next].scrollByCards(1)));
+
+  /* section tabs -> underline active on scroll */
+  const tabLinks = Array.from(document.querySelectorAll('.tab-link'));
+  const targets = tabLinks.map(a => document.querySelector(a.getAttribute('href')) || document.getElementById(a.getAttribute('href').replace('#','')));
+
+  /* testimonial slideshow */
+  const slides = Array.from(document.querySelectorAll('.testimonial-slide'));
+  const testiDots = Array.from(document.querySelectorAll('#testiDots i'));
+  let testiIndex = 0;
+  function showSlide(i){
+    slides.forEach((s,idx)=> s.classList.toggle('active', idx===i));
+    testiDots.forEach((d,idx)=>{ d.classList.toggle('active', idx===i); });
+    testiIndex = i;
+  }
+  document.getElementById('testiNext').addEventListener('click', ()=> showSlide((testiIndex+1)%slides.length));
+  document.getElementById('testiPrev').addEventListener('click', ()=> showSlide((testiIndex-1+slides.length)%slides.length));
+})();
+</script>
+
+</body>
+</html>
