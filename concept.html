@@ -508,8 +508,8 @@
     <div class="nav-right">
       <div class="month-switch">
         <a href="september.html">September</a>
-        <a href="index.html" class="active">October</a>
-        <a href="concept.html">Concept</a>
+        <a href="index.html">October</a>
+        <a href="concept.html" class="active">Concept</a>
       </div>
     </div>
   </div>
@@ -575,22 +575,6 @@
     </div>
   </section>
 
-  <section class="bmw-showcase" id="bmw-showcase">
-    <div class="bmw-scroll-wrap" id="bmwScrollWrap">
-      <div class="bmw-sticky">
-        <div class="bmw-media" id="bmwMedia">
-          <video src="videos/bmw-7-series.webm" autoplay muted loop playsinline aria-label="BMW 7 Series driving through a city street lined with palm trees"></video>
-        </div>
-        <div class="bmw-overlay">
-          <div class="bmw-logo"><img src="images/bmw-logo.svg" alt="BMW"></div>
-          <div class="bmw-overlay-text">
-            <h2>Experience new navigation with BMW Series 7</h2>
-            <a href="#" class="btn btn-primary">Watch now</a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
 
   <section class="lane-row" id="see-around">
     <div class="lane-row-title reveal">
@@ -857,8 +841,8 @@
     header.classList.toggle('solid', window.scrollY >= heroScrollDistance);
   }
 
-  const FRAME_COUNT = 110;
-  const FRAME_PATH = (i) => `frames3/frame_${String(i).padStart(4,'0')}.jpg`;
+  const FRAME_COUNT = 144;
+  const FRAME_PATH = (i) => `frames/frame_${String(i).padStart(4,'0')}.jpg`;
   const canvas = document.getElementById('heroCanvas');
   const ctx = canvas.getContext('2d');
   const scrollHint = document.getElementById('scrollHint');
@@ -909,7 +893,7 @@
   let ticking = false;
   function onScroll(){
     if(!ticking){
-      requestAnimationFrame(() => { onHeaderScroll(); onHeroScroll(); onBmwScroll(); ticking = false; });
+      requestAnimationFrame(() => { onHeaderScroll(); onHeroScroll(); ticking = false; });
       ticking = true;
     }
   }
@@ -947,29 +931,6 @@
     revealEls.forEach(el => revealObserver.observe(el));
   } else {
     revealEls.forEach(el => el.classList.add('in-view'));
-  }
-
-  /* BMW showcase: full-bleed media shrinks to page-content width + rounded corners as you
-     scroll past it, then holds that size for the rest of the pin (Apple studio-display-xdr
-     "Image Quality" pattern). */
-  const bmwScrollWrap = document.getElementById('bmwScrollWrap');
-  const bmwMedia = document.getElementById('bmwMedia');
-  const BMW_TARGET_RADIUS = 24;
-  function onBmwScroll(){
-    if(!bmwScrollWrap) return;
-    const rect = bmwScrollWrap.getBoundingClientRect();
-    const animDistance = window.innerHeight * 0.8;
-    let raw = -rect.top / animDistance;
-    raw = Math.min(Math.max(raw, 0), 1);
-    const gutter = Math.max(32, (window.innerWidth - 1344) / 2);
-    const targetScale = (window.innerWidth - gutter * 2) / window.innerWidth;
-    const scale = 1 - (1 - targetScale) * raw;
-    const radius = BMW_TARGET_RADIUS * raw;
-    bmwMedia.style.transform = `scale(${scale})`;
-    bmwMedia.style.borderRadius = radius + 'px';
-  }
-  if(reduceMotion && bmwMedia){
-    bmwMedia.style.transform = 'none';
   }
 
   /* All placeholder links/buttons: keep :hover styling, but do nothing on click */

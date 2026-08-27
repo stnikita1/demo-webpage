@@ -119,28 +119,15 @@
   }
   .month-switch a:hover{ color:#fff; }
   .month-switch a.active{ background: var(--accent); color:#fff; }
-  /* hero-sequence version toggle, sits right next to October */
-  .version-switch{ display:flex; align-items:center; gap:3px; margin-left:4px; padding-left:6px; border-left:1px solid var(--border-control); }
-  .version-switch a{
-    width:22px; height:22px; border-radius:50%;
-    display:flex; align-items:center; justify-content:center;
-    font-size:11px; font-weight:600; color: var(--text-muted);
-    border:1px solid var(--border-control);
-    transition: background .15s ease, color .15s ease, border-color .15s ease;
-  }
-  .version-switch a:hover{ color:#fff; border-color:#566171; }
-  .version-switch a.active{ background:#fff; color: var(--bg-app); border-color:#fff; }
   @media (max-width: 980px){ .nav-links{ display:none; } }
 
   /* ---------- hero : bg #000008, video full-bleed starting 189px from hero top ---------- */
   .hero{
-    position: relative;
+    position: relative; height:100vh; overflow:hidden;
     background: var(--hero-bg);
   }
-  .hero-sticky{
-    position: sticky; top:0; height:100vh; width:100%;
-    overflow: hidden;
-  }
+  .hero-media{ position:absolute; inset:0; width:100%; height:100%; }
+  .hero-media img{ width:100%; height:100%; object-fit:cover; display:block; }
   .hero-copy{
     position: absolute;
     top: 0; left:0; right:0;
@@ -190,37 +177,14 @@
     transition: opacity .8s cubic-bezier(.16,.84,.44,1), transform .8s cubic-bezier(.16,.84,.44,1);
   }
   .reveal.in-view{ opacity:1; transform: translateY(0); }
-
-  /* lane-card cascade is triggered by the card-track container (not each card),
-     since IntersectionObserver ignores the track's overflow:hidden clip and would
-     otherwise fire the fade on cards still scrolled off-screen */
-  .card-track .lane-card{ opacity:0; transform: translateY(40px); transition: opacity .4s ease, transform .8s cubic-bezier(.16,.84,.44,1); }
-  .card-track.in-view .lane-card{ opacity:1; transform: translateY(0); }
-  .card-track.in-view .lane-card:nth-child(2){ transition-delay: 0s, .1s; }
-  .card-track.in-view .lane-card:nth-child(3){ transition-delay: 0s, .2s; }
-  .card-track.in-view .lane-card:nth-child(4){ transition-delay: 0s, .3s; }
-  /* cards clipped at the track's edge (not fully scrolled into view) sit at reduced
-     opacity, per Figma (node 4075:48024) — normal opacity once scrolled fully in */
-  .card-track.in-view .lane-card.faded{ opacity: .4; }
+  .lane-card.reveal:nth-child(1){ transition-delay:0s; }
+  .lane-card.reveal:nth-child(2){ transition-delay:.1s; }
+  .lane-card.reveal:nth-child(3){ transition-delay:.2s; }
+  .lane-card.reveal:nth-child(4){ transition-delay:.3s; }
   .feature-card.reveal:nth-child(1){ transition-delay:0s; }
   .feature-card.reveal:nth-child(2){ transition-delay:.1s; }
   .feature-card.reveal:nth-child(3){ transition-delay:.2s; }
 
-  .hero-video-wrap{
-    position: absolute; inset:0;
-    width: 100%; height:100%;
-    background:#000;
-  }
-  .hero-video-wrap canvas{ width:100%; height:100%; display:block; }
-
-  .scroll-hint{
-    position:absolute; bottom: 24px; left:50%; transform: translateX(-50%);
-    font-size:11px; color: var(--text-faint);
-    display:flex; flex-direction:column; align-items:center; gap:6px;
-    z-index: 6; transition: opacity .3s ease;
-  }
-  .scroll-hint .dash{ width:1px; height:22px; background: linear-gradient(var(--text-faint), transparent); animation: dashmove 1.6s ease-in-out infinite; }
-  @keyframes dashmove{ 0%{ opacity:.2; } 50%{ opacity:1; } 100%{ opacity:.2; } }
 
   /* ---------- sticky section tabs : 56px, bg #15171b, border #23262d. Sticks to the bottom
      of the fixed 72px header once scrolled up to it. ---------- */
@@ -507,43 +471,36 @@
     </nav>
     <div class="nav-right">
       <div class="month-switch">
-        <a href="september.html">September</a>
-        <a href="index.html" class="active">October</a>
+        <a href="september.html" class="active">September</a>
+        <a href="index.html">October</a>
         <a href="concept.html">Concept</a>
       </div>
     </div>
   </div>
 </header>
 
-<!-- HERO -->
-<section class="hero" id="heroScroll" style="height: 420vh;">
-  <div class="hero-sticky">
+<!-- HERO (static: last frame of the September sequence, no scroll-scrub) -->
+<section class="hero" id="heroStatic">
+  <div class="hero-media">
+    <img src="frames/frame_0144.jpg" alt="Night driving view with 3D live navigation overlay on the dashboard">
+  </div>
 
-    <div class="hero-video-wrap" id="canvasWrap">
-      <canvas id="heroCanvas"></canvas>
-    </div>
+  <div class="hero-scrim"></div>
 
-    <div class="hero-scrim"></div>
-
-    <div class="hero-copy">
-      <div class="inner">
-        <h1><span class="line1">Mapbox</span><span class="line2">3D Live navigation</span></h1>
-        <p>Mapbox 3D Lanes changes the navigation game. Clear lane-level guidance shows drivers where they need to be to make a turn. 3D map details help drivers instantly orient themselves for a next-level experience that feels effortless.</p>
-        <div class="hero-cta">
-          <a href="#" class="btn btn-primary">Get started for free</a>
-          <a href="#" class="btn btn-ghost-hero">Book a test drive</a>
-        </div>
+  <div class="hero-copy">
+    <div class="inner">
+      <h1><span class="line1">Mapbox</span><span class="line2">3D Live navigation</span></h1>
+      <p>Mapbox 3D Lanes changes the navigation game. Clear lane-level guidance shows drivers where they need to be to make a turn. 3D map details help drivers instantly orient themselves for a next-level experience that feels effortless.</p>
+      <div class="hero-cta">
+        <a href="#" class="btn btn-primary">Get started for free</a>
+        <a href="#" class="btn btn-ghost-hero">Book a test drive</a>
       </div>
     </div>
-
-    <div class="scroll-hint" id="scrollHint"><span>Scroll</span><span class="dash"></span></div>
   </div>
 </section>
 
 <div class="hero-tabs">
   <a href="#next-gen" class="tab-link">Real roads</a>
-  <a href="#see-around" class="tab-link">Live surroundings</a>
-  <a href="#lane-guidance" class="tab-link">Lane guidance</a>
   <a href="#features" class="tab-link">More features</a>
   <a href="#customers" class="tab-link">Customer stories</a>
 </div>
@@ -575,82 +532,6 @@
     </div>
   </section>
 
-  <section class="bmw-showcase" id="bmw-showcase">
-    <div class="bmw-scroll-wrap" id="bmwScrollWrap">
-      <div class="bmw-sticky">
-        <div class="bmw-media" id="bmwMedia">
-          <video src="videos/bmw-7-series.webm" autoplay muted loop playsinline aria-label="BMW 7 Series driving through a city street lined with palm trees"></video>
-        </div>
-        <div class="bmw-overlay">
-          <div class="bmw-logo"><img src="images/bmw-logo.svg" alt="BMW"></div>
-          <div class="bmw-overlay-text">
-            <h2>Experience new navigation with BMW Series 7</h2>
-            <a href="#" class="btn btn-primary">Watch now</a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="lane-row" id="see-around">
-    <div class="lane-row-title reveal">
-      <h2>See exactly where you are — and what's around you</h2>
-      <p>Where driver-assist data is available, the live 3D view fills in the world moving around you.</p>
-    </div>
-    <div class="card-track track-reveal" id="row2">
-      <div class="lane-card">
-        <div class="lane-card-visual"></div>
-        <div class="lane-card-text"><h3>Positioned to the lane</h3><p>The vehicle sits in the lane it's actually in, not somewhere on the road's centreline.</p></div>
-      </div>
-      <div class="lane-card">
-        <div class="lane-card-visual"></div>
-        <div class="lane-card-text"><h3>Using the car's own eyes</h3><p>Positioning comes from the vehicle's existing cameras matched against map reference features. No extra sensor hardware.</p></div>
-      </div>
-      <div class="lane-card">
-        <div class="lane-card-visual"></div>
-        <div class="lane-card-text"><h3>The traffic around you, on the map</h3><p>Surrounding vehicles appear where they actually are, moving as they actually move.</p></div>
-      </div>
-      <div class="lane-card">
-        <div class="lane-card-visual"></div>
-        <div class="lane-card-text"><h3>Things that weren't there yesterday</h3><p>Cones, pylons, a closed lane. The transient world no survey pass can capture.</p></div>
-      </div>
-    </div>
-    <div class="lane-row-foot">
-      <div class="dots"><i class="active"></i><i></i><i></i><i></i></div>
-      <div class="row-arrows">
-        <button class="arrow-btn" data-prev="row2"><svg viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 1L2 12l10 11"/></svg></button>
-        <button class="arrow-btn" data-next="row2"><svg viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 1l10 11L2 23"/></svg></button>
-      </div>
-    </div>
-  </section>
-
-  <section class="lane-row" id="lane-guidance">
-    <div class="lane-row-title reveal size-lg">
-      <h2>Guidance that knows which lane you're in</h2>
-      <p>Positioning precise enough to place your car in the right lane — and keep guidance clear right when it matters.</p>
-    </div>
-    <div class="card-track track-reveal" id="row3">
-      <div class="lane-card">
-        <div class="lane-card-visual"></div>
-        <div class="lane-card-text"><h3>Detail where it counts</h3><p>The experience concentrates precision in the zone the driver is about to drive through.</p></div>
-      </div>
-      <div class="lane-card">
-        <div class="lane-card-visual"></div>
-        <div class="lane-card-text"><h3>Which lane, and when</h3><p>Guidance resolves to a specific lane at a specific moment, not a direction and a hope.</p></div>
-      </div>
-      <div class="lane-card">
-        <div class="lane-card-visual"></div>
-        <div class="lane-card-text"><h3>Held, and moved over</h3><p>Active lane guidance keeps the driver in the right lane; lane-change assistance moves them across when the route needs it.</p></div>
-      </div>
-    </div>
-    <div class="lane-row-foot">
-      <div class="dots"><i class="active"></i><i></i><i></i></div>
-      <div class="row-arrows">
-        <button class="arrow-btn" data-prev="row3"><svg viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 1L2 12l10 11"/></svg></button>
-        <button class="arrow-btn" data-next="row3"><svg viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 1l10 11L2 23"/></svg></button>
-      </div>
-    </div>
-  </section>
 
 </div>
 
@@ -850,78 +731,20 @@
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const header = document.getElementById('siteHeader');
-  const heroScroll = document.getElementById('heroScroll');
   function onHeaderScroll(){
-    /* solid bg + bottom border only once the hero scroll-sequence is fully behind us */
-    const heroScrollDistance = heroScroll.offsetHeight - window.innerHeight;
-    header.classList.toggle('solid', window.scrollY >= heroScrollDistance);
-  }
-
-  const FRAME_COUNT = 110;
-  const FRAME_PATH = (i) => `frames3/frame_${String(i).padStart(4,'0')}.jpg`;
-  const canvas = document.getElementById('heroCanvas');
-  const ctx = canvas.getContext('2d');
-  const scrollHint = document.getElementById('scrollHint');
-  const canvasWrap = document.getElementById('canvasWrap');
-
-  const images = [];
-  for(let i=1; i<=FRAME_COUNT; i++){
-    const img = new Image();
-    img.onload = () => { if(i === 1) drawFrame(0); };
-    img.src = FRAME_PATH(i);
-    images.push(img);
-  }
-  const frames = images; // keep downstream references (frames.length) working
-
-  let lastFrameIdx = -1;
-  function resizeCanvas(){
-    const rect = canvasWrap.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.round(rect.width * dpr);
-    canvas.height = Math.round(rect.height * dpr);
-    if(images.length && images[0].complete) drawFrame(lastFrameIdx >= 0 ? lastFrameIdx : 0);
-  }
-
-  function drawFrame(idx){
-    const img = images[idx];
-    if(!img || !img.complete || !img.naturalWidth) return;
-    const cw = canvas.width, ch = canvas.height;
-    const iw = img.naturalWidth, ih = img.naturalHeight;
-    const scale = Math.max(cw/iw, ch/ih);
-    const dw = iw*scale, dh = ih*scale;
-    const dx = (cw-dw)/2, dy = (ch-dh)/2;
-    ctx.clearRect(0,0,cw,ch);
-    ctx.drawImage(img, dx, dy, dw, dh);
-  }
-
-  function onHeroScroll(){
-    if(!frames.length) return;
-    const rect = heroScroll.getBoundingClientRect();
-    const total = heroScroll.offsetHeight - window.innerHeight;
-    const scrolled = -rect.top;
-    let raw = total > 0 ? scrolled/total : 0;
-    raw = Math.min(Math.max(raw, 0), 1);
-    scrollHint.style.opacity = (raw > 0.001) ? '0' : '1';
-    const idx = Math.round(raw * (frames.length - 1));
-    if(idx !== lastFrameIdx){ drawFrame(idx); lastFrameIdx = idx; }
+    /* static hero (no sequence to wait out) — goes solid almost immediately, like mapbox.com */
+    header.classList.toggle('solid', window.scrollY > 4);
   }
 
   let ticking = false;
   function onScroll(){
     if(!ticking){
-      requestAnimationFrame(() => { onHeaderScroll(); onHeroScroll(); onBmwScroll(); ticking = false; });
+      requestAnimationFrame(() => { onHeaderScroll(); ticking = false; });
       ticking = true;
     }
   }
   window.addEventListener('scroll', onScroll, { passive:true });
-  window.addEventListener('resize', () => { resizeCanvas(); onScroll(); });
-  resizeCanvas();
   onScroll();
-
-  if(reduceMotion){
-    if(images.length){ drawFrame(images.length-1); }
-    scrollHint.style.display = 'none';
-  }
 
   /* hero title/copy fade-in on page load */
   const heroCopy = document.querySelector('.hero-copy');
@@ -932,7 +755,7 @@
   }
 
   /* scroll-reveal: fade + rise each block in as it enters the viewport (Apple-style) */
-  const revealEls = document.querySelectorAll('.reveal, .track-reveal');
+  const revealEls = document.querySelectorAll('.reveal');
   if(reduceMotion){
     revealEls.forEach(el => el.classList.add('in-view'));
   } else if('IntersectionObserver' in window){
@@ -947,29 +770,6 @@
     revealEls.forEach(el => revealObserver.observe(el));
   } else {
     revealEls.forEach(el => el.classList.add('in-view'));
-  }
-
-  /* BMW showcase: full-bleed media shrinks to page-content width + rounded corners as you
-     scroll past it, then holds that size for the rest of the pin (Apple studio-display-xdr
-     "Image Quality" pattern). */
-  const bmwScrollWrap = document.getElementById('bmwScrollWrap');
-  const bmwMedia = document.getElementById('bmwMedia');
-  const BMW_TARGET_RADIUS = 24;
-  function onBmwScroll(){
-    if(!bmwScrollWrap) return;
-    const rect = bmwScrollWrap.getBoundingClientRect();
-    const animDistance = window.innerHeight * 0.8;
-    let raw = -rect.top / animDistance;
-    raw = Math.min(Math.max(raw, 0), 1);
-    const gutter = Math.max(32, (window.innerWidth - 1344) / 2);
-    const targetScale = (window.innerWidth - gutter * 2) / window.innerWidth;
-    const scale = 1 - (1 - targetScale) * raw;
-    const radius = BMW_TARGET_RADIUS * raw;
-    bmwMedia.style.transform = `scale(${scale})`;
-    bmwMedia.style.borderRadius = radius + 'px';
-  }
-  if(reduceMotion && bmwMedia){
-    bmwMedia.style.transform = 'none';
   }
 
   /* All placeholder links/buttons: keep :hover styling, but do nothing on click */
@@ -989,38 +789,6 @@
     q.addEventListener('click', () => setState(!item.classList.contains('open')));
   });
 
-  /* user-driven horizontal card carousels (arrows + drag) */
-  function initTrack(track){
-    if(!track) return null;
-    function stepWidth(){
-      const card = track.firstElementChild;
-      if(!card) return 400;
-      const style = getComputedStyle(track);
-      return card.getBoundingClientRect().width + parseFloat(style.gap || 40);
-    }
-    /* cards clipped by the track's own edge (still needing a scroll/drag to reach)
-       are faded; a card becomes normal only once fully inside the visible track */
-    function updateFade(){
-      const rect = track.getBoundingClientRect();
-      Array.from(track.children).forEach(card => {
-        const r = card.getBoundingClientRect();
-        const fullyVisible = r.left >= rect.left - 1 && r.right <= rect.right + 1;
-        card.classList.toggle('faded', !fullyVisible);
-      });
-    }
-    updateFade();
-    track.addEventListener('scroll', updateFade);
-    window.addEventListener('resize', updateFade);
-    let isDown=false, startX=0, startScroll=0;
-    track.addEventListener('mousedown', e=>{ isDown=true; track.classList.add('dragging'); startX=e.pageX; startScroll=track.scrollLeft; });
-    window.addEventListener('mouseup', ()=>{ isDown=false; track.classList.remove('dragging'); });
-    window.addEventListener('mousemove', e=>{ if(!isDown) return; e.preventDefault(); track.scrollLeft = startScroll - (e.pageX-startX); });
-    return { scrollByCards:(dir)=> track.scrollBy({ left: dir*stepWidth(), behavior:'smooth' }), updateFade };
-  }
-  const rowCtrl = {};
-  ['row1','row2','row3'].forEach(id => rowCtrl[id] = initTrack(document.getElementById(id)));
-  document.querySelectorAll('.arrow-btn[data-prev]').forEach(b => b.addEventListener('click', ()=> rowCtrl[b.dataset.prev].scrollByCards(-1)));
-  document.querySelectorAll('.arrow-btn[data-next]').forEach(b => b.addEventListener('click', ()=> rowCtrl[b.dataset.next].scrollByCards(1)));
 
   /* section tabs -> underline active on scroll */
   const tabLinks = Array.from(document.querySelectorAll('.tab-link'));
